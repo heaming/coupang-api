@@ -28,3 +28,82 @@ Content-Type: application/json
 
 ### 게시글 삭제
 DELETE http://localhost:3000/board/3
+
+###
+# @no-cookie-jar
+POST https://quickstar.co.kr/elpisaction/action_ship.php?mode=ship&type=add&save_type=save
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary8GavNzpB7U5C2l6O
+Cookie: _fwb=243c6vDqFC6mTzhjC01i5u.1717027866788; hd_pops_34=1; PHPSESSID=nbmnh38nr4pugovjqk0jlbqkro; e1192aefb64683cc97abb83c71057733=dGJfcmV2aWV3; ck_font_resize_rmv_class=; ck_font_resize_add_class=; wcs_bt=3d9ad1ffb0f9ac:1739709080|920a95481a66d0:1739709079
+
+--boundary
+Content-Disposition: form-data; name="or_code"
+
+""
+--boundary
+Content-Disposition: form-data; name="or_gr_code"
+
+""
+--boundary
+Content-Disposition: form-data; name="or_type"
+
+"ship"
+--boundary
+Content-Disposition: form-data; name="or_mb_id"
+
+"configenv"
+--boundary
+Content-Disposition: form-data; name="or_de_no"
+
+"19"
+--boundary
+Content-Disposition: form-data; name="or_to_code"
+
+"KOR"
+--boundary
+Content-Disposition: form-data; name="or_exchange"
+
+"CNY"
+--boundary
+Content-Disposition: form-data; name="items[0][it_sh_no]"
+
+"1674"
+--boundary
+Content-Disposition: form-data; name="items[0][it_name]"
+
+"electric bicycle"
+--boundary
+Content-Disposition: form-data; name="items[0][it_money]"
+
+"1"
+--boundary
+Content-Disposition: form-data; name="items[0][it_count]"
+
+"1"
+--boundary
+Content-Disposition: form-data; name="order_options[0][oo_money]"
+
+"1000.00"
+--boundary
+Content-Disposition: form-data; name="order_options[0][oo_count]"
+
+"1"
+--boundary
+Content-Disposition: form-data; name="shipping_options[0][os_money]"
+
+"1500.00"
+--boundary
+Content-Disposition: form-data; name="shipping_options[0][os_count]"
+
+"1"
+--boundary
+Content-Disposition: form-data; name="receiver_info[gr_name]"
+
+"1"
+--boundary
+Content-Disposition: form-data; name="receiver_info[gr_zipcode]"
+
+"1"
+--boundary--
+
+###
+GET localhost:3000/coupang/orders
