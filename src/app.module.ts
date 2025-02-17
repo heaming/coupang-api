@@ -7,10 +7,14 @@ import ConfigModule from './config'
 import { HttpModule } from '@nestjs/axios';
 import { CoupangApiController } from './coupang-api/coupang-api.controller';
 import { CoupangApiService } from './coupang-api/coupang-api.service';
+import configuration from './config/configuration';
 
 @Module({
   imports: [
-    ConfigModule(),
+    ConfigModule({
+      load: [configuration],
+      isGlobal: true,
+    }),
     BoardModule,
     HttpModule,
   ],

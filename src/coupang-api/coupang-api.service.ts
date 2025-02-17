@@ -1,25 +1,57 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Query } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { firstValueFrom } from 'rxjs';
 import * as _ from 'lodash';
+import dayjs from 'dayjs';
+
+export type OrderStatusType =
+  | 'ACCEPT'
+  | 'INSTRUCT'
+  | 'DEPARTURE'
+  | 'DELIVERING'
+  | 'FINAL_DELIVERY'
+  | 'NONE_TRACKING';
+
+
+export const OrderStatusLabels: Record<OrderStatusType, string> = {
+  ACCEPT: '결제완료',
+  INSTRUCT: '상품준비중',
+  DEPARTURE: '배송지시',
+  DELIVERING: '배송중',
+  FINAL_DELIVERY: '배송완료',
+  NONE_TRACKING: '업체 직접 배송(배송 연동 미적용), 추적불가',
+};
 
 @Injectable()
 export class CoupangApiService {
-  private readonly ACCESS_KEY = 'e2e68e9c-2b0a-489b-9072-fff24feb2a2f';
-  private readonly SECRET_KEY = 'b9a01557c79e04a0b09e252949527b42563047cf';
-  private readonly VENDOR_ID = 'A01128242';
-  private readonly BASE_URL = 'https://api-gateway.coupang.com';
-  private readonly ENDPOINT = `/v2/providers/openapi/apis/api/v4/vendors/${this.VENDOR_ID}/ordersheets`;
+  private readonly ACCESS_KEY: string;
+  private readonly SECRET_KEY: string;
+  private readonly VENDOR_ID: string;
+  private readonly BASE_URL: string;
+  private readonly ENDPOINT: string;
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {
+    this.ACCESS_KEY = this.configService.get<string>('ACCESS_KEY');
+    this.SECRET_KEY = this.configService.get<string>('SECRET_KEY');
+    this.VENDOR_ID = this.configService.get<string>('VENDOR_ID');
+    this.BASE_URL = this.configService.get<string>('BASE_URL');
+    this.ENDPOINT = `/v2/providers/openapi/apis/api/v4/vendors/${this.VENDOR_ID}/ordersheets`;
+  }
 
-  async fetchOrders(): Promise<any> {
-    const queryParams = 'createdAtFrom=2025-02-15&createdAtTo=2025-02-15&maxPerPage=2&status=DEPARTURE';
+  async fetchOrders(createdAtFrom: string,
+                    createdAtTo:  string,
+                    maxPerPage: number,
+                    status: OrderStatusType): Promise<any> {
+    const queryParams = `createdAtFrom=${createdAtFrom}&createdAtTo=${createdAtTo}&maxPerPage=${maxPerPage}&status=${status}`;
     const requestUrl = `${this.BASE_URL}${this.ENDPOINT}?${queryParams}`;
 
     const timestamp = this.getTimestamp();
-    const signature = this.getAuthHeader('GET', requestUrl);
+    const signature = this.getAuthHeader('GET', requestUrl, timestamp);
 
     const headers = {
       'Content-Type': 'application/json',
@@ -38,10 +70,8 @@ export class CoupangApiService {
   }
 
   private getTimestamp(): string {
-    // 현재 시간을 ISO 8601 형식으로 변환하고 :와 -을 제거하여 원하는 포맷으로 변환
     let timestamp = new Date().toISOString().split('.')[0] + "Z";
-    timestamp = timestamp.replace(/:/g, "").replace(/-/g, "").substring(2);
-    return timestamp;
+    return timestamp.replace(/:/g, "").replace(/-/g, "").substring(2);
   }
 
   private getPath(url: string): string {
@@ -55,28 +85,13 @@ export class CoupangApiService {
     return arrSplit.length > 1 ? url.substring(url.indexOf('?') + 1) : '';
   }
 
-  private getAuthHeader(httpMethod: string, requestUrl: string): string {
+  private getAuthHeader(httpMethod: string, requestUrl: string, timestamp: string): string {
     const requestPath = this.getPath(requestUrl);
     const queryString = this.getQueryString(requestUrl);
-
-    const timestamp = this.getTimestamp();
     let requestData = [timestamp, httpMethod, requestPath, queryString].join('');
-    requestData = this.replaceVariables(requestData);
 
-    // HMAC 생성
+    // HMAC SHA256 서명 생성
     const hash = crypto.createHmac('sha256', this.SECRET_KEY).update(requestData).digest('hex');
     return hash;
-  }
-
-  private replaceVariables(templateString: string): string {
-    const tokens = _.uniq(templateString.match(/{{\w*}}/g));
-
-    _.forEach(tokens, t => {
-      const variable = t.replace(/[{}]/g, '');
-      const value = process.env[variable] || global[variable];
-      templateString = templateString.replace(new RegExp(t, 'g'), value);
-    });
-
-    return templateString;
   }
 }
