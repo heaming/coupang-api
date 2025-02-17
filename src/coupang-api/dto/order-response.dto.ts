@@ -63,7 +63,7 @@ export interface OverseaShippingInfoDto {
 
 export type ShipmentType = 'THIRD_PARTY' | 'CGF' | 'CGF LITE'
 
-export class CoupangOrderDto {
+export class OrderResponseDto {
   shipmentBoxId: number;
   orderId: number;
   orderedAt: String;
