@@ -6,8 +6,9 @@ import { firstValueFrom } from 'rxjs';
 import { UpdateInvoicesRequestDto } from './dto/update-invoices-request.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { CoupangApiResponse } from './dto/coupang-api-response.dto';
-import { InstructResponseDto } from './dto/instruct-response.dto';
+import { InstructResponseDto, OrderSheetItem } from './dto/instruct-response.dto';
 import { UpdateInvoicesResponseDto } from './dto/update-invoices-response.dto';
+import e from 'express';
 
 export type OrderStatusType =
   | 'ACCEPT'
@@ -49,7 +50,7 @@ export class CoupangApiService {
   async fetchOrders(createdAtFrom: string,
                     createdAtTo:  string,
                     maxPerPage: number,
-                    status: OrderStatusType):Promise<CoupangApiResponse<OrderResponseDto[]>> {
+                    status: OrderStatusType):Promise<CoupangApiResponse<OrderResponseDto>> {
     const queryParams = `createdAtFrom=${createdAtFrom}&createdAtTo=${createdAtTo}&maxPerPage=${maxPerPage}&status=${status}`;
     const requestUrl = `${this.BASE_URL}${this.ENDPOINT}?${queryParams}`;
 
@@ -65,7 +66,7 @@ export class CoupangApiService {
       const response = await firstValueFrom(
         this.httpService.get(requestUrl, { headers }),
       );
-      console.log(response.data)
+
       return response.data;
     } catch (error) {
       console.error('Error fetching orders:', error.response?.data || error.message);
@@ -73,7 +74,7 @@ export class CoupangApiService {
     }
   }
 
-  async updateOrderStatusToInstruct(shipmentBoxIds: number[]): Promise<CoupangApiResponse<InstructResponseDto>> {
+  async updateOrderStatusToInstruct(shipmentBoxIds: number[]): Promise<InstructResponseDto> {
     const requestUrl = `${this.BASE_URL}/v2/providers/openapi/apis/api/v4/vendors/${this.VENDOR_ID}/ordersheets/acknowledgement`;
 
     const timestamp = this.getTimestamp();
@@ -92,7 +93,9 @@ export class CoupangApiService {
       const response = await firstValueFrom(
         this.httpService.patch(requestUrl, requestBody, { headers }),
       );
-      console.log(response.data);
+
+      response.data.responseList = response.data.responseList.filter((item : OrderSheetItem) => item.succeed === true)
+
       return response.data;
     } catch (error) {
       console.error(

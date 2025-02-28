@@ -30,16 +30,14 @@ export class CoupangApiController {
                   @Query('createdAtTo') createdAtTo:  string = dayjs().format('YYYY-MM-DD'),
                   @Query('maxPerPage') maxPerPage: number = 10,
                   @Query('status') status: OrderStatusType,
-                  ) : Promise<CoupangApiResponse<OrderResponseDto[]>> {
-    const response =  await this.coupangApiService.fetchOrders(createdAtFrom, createdAtTo, maxPerPage, status);
-    console.log(response.data);
-    return response;
+                  ) : Promise<CoupangApiResponse<OrderResponseDto>> {
+    return await this.coupangApiService.fetchOrders(createdAtFrom, createdAtTo, maxPerPage, status);;
   }
 
   // 상품 준비중 처리
   @Patch('/instruct')
-  async updateOrderStatusToInstruct(@Body('shipmentBoxIds') shipmentBoxIds: number[]) : Promise<CoupangApiResponse<InstructResponseDto>> {
-    return this.coupangApiService.updateOrderStatusToInstruct(shipmentBoxIds);
+  async updateOrderStatusToInstruct(@Body('shipmentBoxIds') shipmentBoxIds: number[]) : Promise<InstructResponseDto> {
+    return await this.coupangApiService.updateOrderStatusToInstruct(shipmentBoxIds);
   }
 
   // 송장 업로드 처리
