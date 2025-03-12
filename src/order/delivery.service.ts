@@ -26,23 +26,20 @@ export class DeliveryService {
 
       const shipmentBoxIds = orders.data.map(order => order.shipmentBoxId);
 
-      // 2. 상품 준비중 처리 전 배송지 확인
-
-      // 3. 상품 준비중 처리 (처리된 것만 받아옴)
+      // 2. 상품 준비중 처리 (처리된 것만 받아옴)
       const instructResponse = await this.coupangApiController.updateOrderStatusToInstruct(shipmentBoxIds);
 
+      // 3. 배송지 정보 확인
+      const newlyOrdersheets = await this.coupangApiController.getOrderSheetsByShipmentBoxIds(shipmentBoxIds);
+
       // 4. 안 쓴 송장 번호 가져오기
-      const availableInvoiceNumberList :string[] = [];
+      const availableInvoiceNumberList: Invoice[] = await this.invoiceService.getNotUsedInvoices();
 
       // 5. 순서 대로 updateInvoices()
       await this.coupangApiController.updateInvoices(this.toOrderSheetInvoiceApplyDto(availableInvoiceNumberList));
-
-
-
-
     }
 
-    private toOrderSheetInvoiceApplyDto(shipmentBoxIds: number[], invoiceNumberList : string[]) {
+    private toOrderSheetInvoiceApplyDto(o: number[], invoiceNumberList : string[]) {
       invoiceNumberList.map(invoiceNumber => {
         return {
           shipmentBoxId: ,

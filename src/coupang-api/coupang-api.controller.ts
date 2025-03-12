@@ -45,8 +45,22 @@ export class CoupangApiController {
   async updateInvoices(
     @Body() request: UpdateInvoicesRequestDto,
   ) : Promise<CoupangApiResponse<UpdateInvoicesResponseDto>> {
-    const result = await this.coupangApiService.updateOrderInvoices(request);
-    console.log(result.data);
-    return result;
+    return await this.coupangApiService.updateOrderInvoices(request);
+  }
+
+  // 발주서 단건 조회
+  @Get('/ordersheet/shipment-box-id')
+  async getOrderSheetByShipmentBoxId(
+    @Query('shipmentBoxId') shipmentBoxId: number
+  ) : Promise<CoupangApiResponse<OrderSheetResponseDto>> {
+    return await this.coupangApiService.getOrdersheetByShipmentBoxId(shipmentBoxId);
+  }
+
+  // 발주서 단건 조회 리스트로
+  @Get('/ordersheets/shipment-box-ids')
+  async getOrderSheetsByShipmentBoxIds(
+    @Query('shipmentBoxIds') shipmentBoxIds: number[]
+  ) : Promise<OrderSheetResponseDto[]> {
+    return await this.coupangApiService.getOrdersheetsByShipmentBoxIds(shipmentBoxIds);
   }
 }

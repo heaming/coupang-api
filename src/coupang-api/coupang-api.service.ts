@@ -134,6 +134,47 @@ export class CoupangApiService {
     }
   }
 
+  async getOrdersheetsByShipmentBoxIds(shipmentBoxIds: number[]): Promise<OrderSheetResponseDto[]> {
+    let result: OrderSheetResponseDto[] = [];
+
+    try {
+      for (const shipmentBoxId of shipmentBoxIds) {
+        const response = await this.getOrdersheetByShipmentBoxId(shipmentBoxId);
+
+        if (response.code === 200) {
+          result = [...result, response.data[0]];
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error get ordersheetss by shipmentBoxId:', error.response?.data || error.message);
+      throw new Error('Failed to get ordersheets by shipmentBoxIds in Coupang API');
+    }
+  }
+
+  async getOrdersheetByShipmentBoxId(shipmentBoxId: number): Promise<CoupangApiResponse<OrderSheetResponseDto>> {
+    const requestUrl = `${this.BASE_URL}/v2/providers/openapi/apis/api/v4/vendors/${this.VENDOR_ID}/ordersheets/${shipmentBoxId}`;
+
+    const timestamp = this.getTimestamp();
+    const signature = this.getAuthHeader('GET', requestUrl, timestamp);
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `CEA algorithm=HmacSHA256, access-key=${this.ACCESS_KEY}, signed-date=${timestamp}, signature=${signature}`,
+    };
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(requestUrl, { headers }),
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error get ordersheet by shipmentBoxId:', error.response?.data || error.message);
+      throw new Error('Failed to get ordersheet by shipmentBoxId in Coupang API');
+    }
+  }
+
   private getTimestamp(): string {
     let timestamp = new Date().toISOString().split('.')[0] + "Z";
     return timestamp.replace(/:/g, "").replace(/-/g, "").substring(2);
