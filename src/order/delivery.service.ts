@@ -7,7 +7,7 @@ import { async } from 'rxjs';
 import { CoupangApiService, OrderStatusType } from '../coupang-api/coupang-api.service';
 import dayjs from 'dayjs';
 import { OrderSheetItem } from '../coupang-api/dto/instruct-response.dto';
-import { OrderSheetInvoiceApplyDto } from '../coupang-api/dto/update-invoices-request.dto';
+import { OrderSheetInvoiceApplyDto, UpdateInvoicesRequestDto } from '../coupang-api/dto/update-invoices-request.dto';
 
 @Injectable()
 export class DeliveryService {
@@ -33,29 +33,35 @@ export class DeliveryService {
       const newlyOrdersheets = await this.coupangApiController.getOrderSheetsByShipmentBoxIds(shipmentBoxIds);
 
       // 4. 안 쓴 송장 번호 가져오기
-      const availableInvoiceNumberList: Invoice[] = await this.invoiceService.getNotUsedInvoices();
+      const availableInvoices: Invoice[] = await this.invoiceService.getNotUsedInvoices();
 
-      // 5. 순서 대로 updateInvoices()
-      await this.coupangApiController.updateInvoices(this.toOrderSheetInvoiceApplyDto(availableInvoiceNumberList));
-    }
-
-    private toOrderSheetInvoiceApplyDto(o: number[], invoiceNumberList : string[]) {
-      invoiceNumberList.map(invoiceNumber => {
-        return {
-          shipmentBoxId: ,
-          orderId: number,
-          vendorItemId: number,
-          deliveryCompanyCode: string,
-          invoiceNumber: string,
-          splitShipping: boolean,
-          preSplitShipped: boolean,
-          estimatedShippingDate?: string,
+      let invoiceIdx = 0;
+      const ordersheetInvoiceApplyDtos: OrderSheetInvoiceApplyDto[] = [];
+      for(let ordersheet of newlyOrdersheets) {
+        if (!availableInvoices || availableInvoices.length <= invoiceIdx) {
+          console.error("사용 가능한 송장 없음");
+          break;
         }
-      })
+        let invoice = availableInvoices[invoiceIdx];
+        ordersheetInvoiceApplyDtos.push(this.toOrderSheetInvoiceApplyDto(ordersheet, invoice));
+        await this.invoiceService.updateInvoiceUsedAt(invoice.invoiceNumber);
+        invoiceIdx++;
+      }
 
+      // 5. 송장 업데이트
+      await this.coupangApiController.updateInvoices(new UpdateInvoicesRequestDto(ordersheetInvoiceApplyDtos));
     }
 
-
-
-
+    private toOrderSheetInvoiceApplyDto(ordersheet: OrderSheetResponseDto, invoice : Invoice) {
+      return {
+        shipmentBoxId: ordersheet.shipmentBoxId,
+        orderId: ordersheet.orderId,
+        vendorItemId: ordersheet.orderItems[0].vendorItemId,
+        deliveryCompanyCode: invoice.deliveryCompanyCode,
+        invoiceNumber: invoice.invoiceNumber,
+        splitShipping: false,
+        preSplitShipped: false,
+        estimatedShippingDate: ordersheet.orderItems[0].estimatedShippingDate,
+      }
+    }
 }

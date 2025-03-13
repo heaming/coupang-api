@@ -142,7 +142,10 @@ export class CoupangApiService {
         const response = await this.getOrdersheetByShipmentBoxId(shipmentBoxId);
 
         if (response.code === 200) {
-          result = [...result, response.data[0]];
+          const data = response.data[0];
+          if(!data.splitShipping) {
+            result = [...result, response.data[0]];
+          }
         }
       }
 

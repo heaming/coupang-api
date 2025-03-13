@@ -10,5 +10,8 @@ export interface OrderSheetInvoiceApplyDto {
 }
 
 export class UpdateInvoicesRequestDto {
+  constructor(orderSheetInvoiceApplyDtos) {
+    this.orderSheetInvoiceApplyDtos = orderSheetInvoiceApplyDtos;;
+  }
   orderSheetInvoiceApplyDtos: OrderSheetInvoiceApplyDto[];
 }
