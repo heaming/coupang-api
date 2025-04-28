@@ -20,7 +20,7 @@ export class AppController {
 
   private readonly logger = new Logger(); // DI 불가
 
-  @Get()
+  @Get('/')
   getHello(@Ip() ip: string): string {
     // this.logger.log("ip:"+ip);
     // this.logger.debug("ip:"+ip);
