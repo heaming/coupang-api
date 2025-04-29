@@ -21,8 +21,11 @@ interface Product {
   price: string;
   option1: string;
   option2: string;
+  request: string;
   orderNo: string;
   trackingNo: string;
+  quickstarPrice: string,
+  weight: string,
 }
 
 @Injectable()
@@ -31,7 +34,7 @@ export class ProductsService {
   private readonly QUICKSTAR_URL = 'http://quickstar.co.kr/elpisbbs/ajax.nt_big_invoice_list_member.php?';
 
   // 매주 월요일 오전 10시
-  @Cron('0 30 23 * * *')
+  @Cron('0 0 10 * * 1')
   async handleCron() {
     this.logger.log('엑셀 자동 저장 작업 시작');
     try {
@@ -70,13 +73,16 @@ export class ProductsService {
       { header: '단가', key: 'price', width: 10 },
       { header: '옵션1', key: 'option1', width: 30 },
       { header: '옵션2', key: 'option2', width: 30 },
+      { header: '요청사항', key: 'request', width: 30 },
       { header: '주문번호', key: 'orderNo', width: 25 },
       { header: '트레킹번호', key: 'trackingNo', width: 30 },
+      { header: '퀵스타 택배비', key: 'quickstarPrice', width: 30 },
+      { header: '무게', key: 'weight', width: 30 },
     ];
 
     while(hasData) {
-      let url = this.generateUrlParam(last, limit, '2025-04-15', '2025-04-22');
-      // let url = this.generateUrlParam(last, limit, sdate, edate);
+      // let url = this.generateUrlParam(last, 10, '2025-04-20', '2025-04-20');
+      let url = this.generateUrlParam(last, limit, sdate, edate);
       const res = await axios.get(url);
       const { data: html } = res;
 
@@ -91,7 +97,6 @@ export class ProductsService {
       console.log(`data count :: ${worksheet.rowCount}`);
 
       last += 200;
-      limit += 200;
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -105,67 +110,107 @@ export class ProductsService {
 
     // 각 상품 테이블(item_info) 순회
     $table_item_info.each((_, table) => {
+      let image,
+          code,
+          name,
+          category,
+          quantity,
+          price,
+          option1,
+          option2,
+          request,
+          orderNo,
+          trackingNo,
+          quickstarPrice,
+          weight;
+
       $(table)
         .find('tr')
         .each((_, tr) => {
           const $tr = $(tr);
 
           // 이미지
-          const image = $tr.find('td.CT.nodata_img img.thumbnail').attr('src') || '';
+          image = $tr.find('td.CT.nodata_img img.thumbnail').attr('src') || '';
 
           // 상품코드
-          const code = $tr.find('div[id^=IT]').attr('id') || '';
+          code = $tr.find('div[id^=IT]').attr('id') || '';
 
           // 상품명
-          const name = $tr.find('div:contains("상품명") b').text().trim();
+          name = $tr.find('div:contains("상품명") b').text().trim();
 
           // 품목
-          const category = $tr
+          category = $tr
             .find('div:contains("품목") span')
             .text()
-            .replace(/^\[.*?\]\s*/, '') // [코드] 제거
             .split('·')[0]
             .trim();
 
           // 수량, 단가
-          const quantity = $tr.find('div:contains("수량") span').first().text().trim();
-          const price = $tr.find('div:contains("단가") span').last().text().trim();
+          quantity = $tr.find('div:contains("수량") span').first().text().trim();
+          price = $tr.find('div:contains("단가") span').last().text().trim();
 
           // 옵션1, 옵션2
-          const option1 = $tr.find('div:contains("옵션1") span').text().trim();
-          const option2 = $tr.find('div:contains("옵션2") span').text().trim();
+          option1 = $tr.find('div:contains("옵션1") span').text().trim();
+          option2 = $tr.find('div:contains("옵션2") span').text().trim();
+
+          // 요청사항
+          request = $tr.find('div:contains("요청사항") span').text().trim();
 
           // 주문번호
-          const orderNo = $tr
+          orderNo = $tr
             .find('div:contains("주문번호") span')
             .last()
             .text()
             .trim();
 
           // 트레킹번호
-          const trackingNo = $tr
+          trackingNo = $tr
             .find('div:contains("트레킹번호") a')
             .first()
             .text()
             .replace('▶', '')
             .trim();
-
-          // 상품명 등 필수값이 있을 때만 추가
-          if (name) {
-            products.push({
-              image,
-              code,
-              name,
-              category,
-              quantity,
-              price,
-              option1,
-              option2,
-              orderNo,
-              trackingNo,
-            });
-          }
         });
+
+      const extraDataNodes = [];
+      let $next = $(table).next();
+
+      while ($next.length && !$next.is('table')) {
+        extraDataNodes.push($next);
+        $next = $next.next();
+      }
+
+      extraDataNodes.forEach(($node, idx) => {
+        const tagName = $node[0].tagName;
+        const text = $node.text().trim();
+
+        if (tagName === 'b') {
+          if (text.indexOf('.') > -1) { // 무게
+            weight = text;
+          } else if (text.indexOf(',') > -1) {
+            quickstarPrice = text;
+          }
+        }
+      });
+      // 상품명 등 필수값이 있을 때만 추가
+      if (name) {
+        products.push({
+          image,
+          code,
+          name,
+          category,
+          quantity,
+          price,
+          option1,
+          option2,
+          request,
+          orderNo,
+          trackingNo,
+          quickstarPrice,
+          weight
+        });
+      }
+
     });
 
 
@@ -180,8 +225,11 @@ export class ProductsService {
         price: p.price,
         option1: p.option1,
         option2: p.option2,
+        request: p.request,
         orderNo: p.orderNo,
         trackingNo: p.trackingNo,
+        quickstarPrice: p.quickstarPrice,
+        weight: p.weight,
       });
 
       // 이미지 삽입
@@ -195,7 +243,7 @@ export class ProductsService {
           });
           worksheet.addImage(imageId, {
             tl: { col: 0, row: i + 1 },
-            ext: { width: 80, height: 80 },
+            ext: { width: 40, height: 40 },
             editAs: 'oneCell',
           });
           worksheet.getRow(i + 2).height = 60;
