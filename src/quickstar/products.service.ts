@@ -8,7 +8,8 @@ import { of } from 'rxjs';
 import { Cron } from '@nestjs/schedule';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import * as process from 'node:process'; //한국어
+import * as process from 'node:process';
+import { imageSize } from 'image-size'; //한국어
 
 dayjs.locale("ko");
 
@@ -65,7 +66,7 @@ export class ProductsService {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(`Products_${dayjs().format('YYYY-MM-DD')}`);
     worksheet.columns = [
-      { header: '이미지', key: 'image', width: 20 },
+      { header: '이미지', key: 'image', width: 200 },
       { header: '상품코드', key: 'code', width: 20 },
       { header: '상품명', key: 'name', width: 30 },
       { header: '카테고리', key: 'category', width: 20 },
@@ -81,8 +82,8 @@ export class ProductsService {
     ];
 
     while(hasData) {
-      // let url = this.generateUrlParam(last, 10, '2025-04-20', '2025-04-20');
-      let url = this.generateUrlParam(last, limit, sdate, edate);
+      let url = this.generateUrlParam(last, 200, '2024-07-01', '2024-07-08');
+      // let url = this.generateUrlParam(last, limit, sdate, edate);
       const res = await axios.get(url);
       const { data: html } = res;
 
@@ -214,10 +215,9 @@ export class ProductsService {
     });
 
 
-    for (let i = 0; i < products.length; i++) {
-      const p = products[i];
-      await worksheet.addRow({
-        image: '', // 이미지는 아래에서 삽입
+    for (const p of products) {
+      const row = worksheet.addRow({
+        image: '', // 이미지 열은 빈 값
         code: p.code,
         name: p.name,
         category: p.category,
@@ -232,23 +232,46 @@ export class ProductsService {
         weight: p.weight,
       });
 
+      const rowIndex = row.number;
+
       // 이미지 삽입
       if (p.image) {
         try {
           const imageUrl = p.image.startsWith('http') ? p.image : `http://quickstar.co.kr/${p.image.replace(/^\//, '')}`;
+          // const imageUrl = () => {
+          //   if (p.image.startsWith('http')) {
+          //     return p.image;
+          //   } else if (p.image.startsWith('//')) {
+          //     return `https://${p.image.replace(/^\//, '')}`;
+          //   } else {
+          //     return `http://quickstar.co.kr/${p.image.replace(/^\//, '')}`;
+          //   }
+          // // }
           const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+          const imageBuffer = Buffer.from(imgRes.data, 'binary');
+          const dimensions = imageSize(imageBuffer); // <-- 여기 OK
+          const imgWidth = dimensions.width || 200;
+          const imgHeight = dimensions.height || 200;
+
+          const cellWidthPx = 200;
+          const cellHeightPx = 200;
+          const scale = Math.min(cellWidthPx / imgWidth, cellHeightPx / imgHeight, 1);
+
           const imageId = workbook.addImage({
-            buffer: Buffer.from(imgRes.data, 'binary'),
+            buffer: imageBuffer,
             extension: 'jpeg',
           });
+
           worksheet.addImage(imageId, {
-            tl: { col: 0, row: i + 1 },
-            ext: { width: 40, height: 40 },
+            tl: { col: 0, row: rowIndex - 1 },
+            ext: {
+              width: imgWidth * scale,
+              height: imgHeight * scale,
+            },
             editAs: 'oneCell',
           });
-          worksheet.getRow(i + 2).height = 60;
         } catch (e) {
-          // 이미지 다운로드 실패시 무시
+          console.log('image 다운 실패 ㅜ.ㅜ', e);
         }
       }
     }
@@ -256,5 +279,13 @@ export class ProductsService {
 
   public generateUrlParam(last: number, limit: number, sdate: string, edate: string) :string {
     return `${this.QUICKSTAR_URL}last=${last}&limit=${limit}&value=&or_de_no=&sdate=${sdate}&edate=${edate}&mb_id=&last_code=&it_code=&dytpe=&gr_var5=`;
+  }
+
+  public resolveImageUrl(url: string): string {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // 상대 경로일 경우 기본 도메인 붙이기
+    return `http://quickstar.co.kr${url.startsWith('/') ? '' : '/'}${url}`;
   }
 }
