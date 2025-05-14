@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import ExcelJS from 'exceljs';
@@ -9,7 +9,9 @@ import { Cron } from '@nestjs/schedule';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as process from 'node:process';
-import { imageSize } from 'image-size'; //한국어
+import { imageSize } from 'image-size';
+import imageType from 'image-type';
+
 
 dayjs.locale("ko");
 
@@ -82,7 +84,7 @@ export class ProductsService {
     ];
 
     while(hasData) {
-      let url = this.generateUrlParam(last, 200, '2024-07-01', '2024-07-08');
+      let url = this.generateUrlParam(last, 200, '2024-07-01', '2024-07-01');
       // let url = this.generateUrlParam(last, limit, sdate, edate);
       const res = await axios.get(url);
       const { data: html } = res;
@@ -100,8 +102,13 @@ export class ProductsService {
       last += 200;
     }
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    return buffer as Buffer;
+    try {
+      const buffer = await workbook.xlsx.writeBuffer();
+      return buffer as Buffer;
+    } catch (error) {
+      console.error('엑셀 버퍼 생성 중 오류 발생:', error);
+      throw new InternalServerErrorException('엑셀 파일 생성에 실패했습니다.');
+    }
   }
 
   async addDataRow(html: any, workbook: any, worksheet: any): Promise<any> {
@@ -214,67 +221,94 @@ export class ProductsService {
 
     });
 
-
-    for (const p of products) {
-      const row = worksheet.addRow({
-        image: '', // 이미지 열은 빈 값
-        code: p.code,
-        name: p.name,
-        category: p.category,
-        quantity: p.quantity,
-        price: p.price,
-        option1: p.option1,
-        option2: p.option2,
-        request: p.request,
-        orderNo: p.orderNo,
-        trackingNo: p.trackingNo,
-        quickstarPrice: p.quickstarPrice,
-        weight: p.weight,
-      });
-
-      const rowIndex = row.number;
-
-      // 이미지 삽입
-      if (p.image) {
+    const rowPromises = products.map(async (p) => {
+      return new Promise<void>(async (resolve, reject) => {
         try {
-          const imageUrl = p.image.startsWith('http') ? p.image : `http://quickstar.co.kr/${p.image.replace(/^\//, '')}`;
-          // const imageUrl = () => {
-          //   if (p.image.startsWith('http')) {
-          //     return p.image;
-          //   } else if (p.image.startsWith('//')) {
-          //     return `https://${p.image.replace(/^\//, '')}`;
-          //   } else {
-          //     return `http://quickstar.co.kr/${p.image.replace(/^\//, '')}`;
-          //   }
-          // // }
-          const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-          const imageBuffer = Buffer.from(imgRes.data, 'binary');
-          const dimensions = imageSize(imageBuffer); // <-- 여기 OK
-          const imgWidth = dimensions.width || 200;
-          const imgHeight = dimensions.height || 200;
-
-          const cellWidthPx = 200;
-          const cellHeightPx = 200;
-          const scale = Math.min(cellWidthPx / imgWidth, cellHeightPx / imgHeight, 1);
-
-          const imageId = workbook.addImage({
-            buffer: imageBuffer,
-            extension: 'jpeg',
+          const row = worksheet.addRow({
+            image: '',
+            code: p.code,
+            name: p.name,
+            category: p.category,
+            quantity: p.quantity,
+            price: p.price,
+            option1: p.option1,
+            option2: p.option2,
+            request: p.request,
+            orderNo: p.orderNo,
+            trackingNo: p.trackingNo,
+            quickstarPrice: p.quickstarPrice,
+            weight: p.weight,
           });
 
-          worksheet.addImage(imageId, {
-            tl: { col: 0, row: rowIndex - 1 },
-            ext: {
-              width: imgWidth * scale,
-              height: imgHeight * scale,
-            },
-            editAs: 'oneCell',
-          });
+          const rowIndex = row.number;
+
+          if (p.image) {
+            const imageUrl = p.image.startsWith('http') ? p.image : `http://quickstar.co.kr/${p.image.replace(/^\//, '')}`;
+            try {
+              const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+              const imageBuffer = Buffer.from(imgRes.data, 'binary');
+
+              // 이미지 버퍼 로그 추가
+              console.log(`이미지 다운로드 완료 - URL: ${imageUrl}`);
+              console.log(`이미지 버퍼 길이: ${imageBuffer.length}`);
+
+              // 이미지 크기 추출
+              const dimensions = imageSize(imageBuffer);
+              if (!dimensions || !dimensions.width || !dimensions.height) {
+                console.log(`이미지 크기 정보가 없거나 잘못된 형식입니다 - URL: ${imageUrl}`);
+                throw new Error(`이미지 크기 정보가 없습니다. URL: ${imageUrl}`);
+              }
+              const imgWidth = dimensions.width || 200;
+              const imgHeight = dimensions.height || 200;
+              // 엑셀의 단위 환산
+              const pixelToRowHeight = 0.75;       // 1 row height ≈ 0.75px
+              const pixelToColumnWidth = 0.13;     // 1 column width ≈ 7.5px → 1px ≈ 0.13
+
+              const ext = imageUrl.split('.').pop()?.split('?')[0]?.toLowerCase();
+              const extension = ext === 'png' ? 'png' : 'jpeg';
+
+              // 셀 크기 조절
+              worksheet.getRow(rowIndex).height = 200; // 픽셀 단위 높이
+              worksheet.getColumn(1).width = 50; // Excel 열 너비 단위
+              // 확장자 유추
+              // const type = await imageType(imageBuffer);
+              // if (!type || !type.mime.startsWith('image/')) {
+              //   throw new Error(`이미지 크기 정보가 없습니다. URL: ${type}`);
+              // }
+              // const ext = type.ext;
+              // const extension = ext === 'jpg' ? 'jpeg' : ext;
+
+              const imageId = workbook.addImage({
+                buffer: imageBuffer,
+                extension: extension || 'jpeg',
+                });
+
+              const rowPos = Math.max(0, rowIndex - 1);
+              worksheet.addImage(imageId, {
+                tl: { col: 0, row: rowPos },
+                editAs: 'oneCell',
+                ext: { width: 200, height: 200}
+
+              });
+            } catch (err) {
+
+              console.log(`이미지 다운로드 실패: ${err.message}`);
+            }
+          }
+          resolve();
         } catch (e) {
-          console.log('image 다운 실패 ㅜ.ㅜ', e);
+          console.log(`이미지 삽입 실패: ${e.message}`);
+          resolve(); // 오류가 발생해도 계속 진행하도록 resolve 호출
         }
-      }
+      });
+    });
+
+    try {
+      await Promise.all(rowPromises);  // 모든 이미지 프로미스를 처리
+    } catch (e) {
+      console.error('전체 작업에서 오류 발생:', e);
     }
+
   }
 
   public generateUrlParam(last: number, limit: number, sdate: string, edate: string) :string {
@@ -282,10 +316,9 @@ export class ProductsService {
   }
 
   public resolveImageUrl(url: string): string {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
-    }
-    // 상대 경로일 경우 기본 도메인 붙이기
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('//')) return 'https:' + url;
     return `http://quickstar.co.kr${url.startsWith('/') ? '' : '/'}${url}`;
   }
 }

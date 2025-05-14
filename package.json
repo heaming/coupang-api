@@ -33,7 +33,9 @@
     "class-validator": "^0.14.1",
     "dayjs": "^1.11.13",
     "exceljs": "^4.4.0",
+    "file-type": "^20.5.0",
     "image-size": "^2.0.2",
+    "image-type": "^5.2.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.20"
