@@ -41,23 +41,14 @@ export class ProductsService {
   async handleCron() {
     this.logger.log('엑셀 자동 저장 작업 시작');
     try {
-      const buffer = await this.createExcelSheet();
-      const dir = path.join(process.cwd(), 'excel'); // 폴더명은 자기가 만들기
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      const filePath = path.join(
-        dir,
-        `products_${dayjs().format('YYYY-MM-DD_HH-mm')}.xlsx`
-      );
-      fs.writeFileSync(filePath, buffer);
-      this.logger.log(`엑셀 저장 완료: ${filePath}`);
+      await this.createExcelSheet();
+      this.logger.log(`엑셀 저장 완료`);
     } catch (e) {
       this.logger.error('엑셀 저장 실패', e);
     }
   }
 
-  async createExcelSheet(): Promise<Buffer> {
+  async createExcelSheet(): Promise<void> {
     let last = 0;
     let limit = 200;
     let edate = dayjs().format('YYYY-MM-DD');
@@ -84,14 +75,14 @@ export class ProductsService {
     ];
 
     while(hasData) {
-      let url = this.generateUrlParam(last, 200, '2024-07-01', '2024-07-01');
+      let url = this.generateUrlParam(last, 200, '2024-07-01', '2024-07-31');
       // let url = this.generateUrlParam(last, limit, sdate, edate);
       const res = await axios.get(url);
       const { data: html } = res;
 
       if (html === 'no_mid') {
         console.log('no data - finished');
-        console.log(`data count :: ${worksheet.rowCount}`);
+        console.log(`total :: ${worksheet.rowCount}`);
         hasData = false;
         break;
       }
@@ -103,8 +94,14 @@ export class ProductsService {
     }
 
     try {
-      const buffer = await workbook.xlsx.writeBuffer();
-      return buffer as Buffer;
+      const dir = path.join(process.cwd(), 'excel');
+      const filePath = path.join(dir, `products_${dayjs().format('YYYY-MM-DD_HH-mm')}.xlsx`);
+
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      await workbook.xlsx.writeFile(filePath);
     } catch (error) {
       console.error('엑셀 버퍼 생성 중 오류 발생:', error);
       throw new InternalServerErrorException('엑셀 파일 생성에 실패했습니다.');
@@ -247,10 +244,6 @@ export class ProductsService {
             try {
               const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
               const imageBuffer = Buffer.from(imgRes.data, 'binary');
-
-              // 이미지 버퍼 로그 추가
-              console.log(`이미지 다운로드 완료 - URL: ${imageUrl}`);
-              console.log(`이미지 버퍼 길이: ${imageBuffer.length}`);
 
               // 이미지 크기 추출
               const dimensions = imageSize(imageBuffer);
